@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # RTC_UE01_BMI.py
 # Gerald Hebinck 09th Nov 2020
 
@@ -26,10 +27,10 @@ def calcBMI(m, s):
 def evaluateBMI(_bmi, age):
     bmi_min = matrixBMI[1][-1]
     bmi_max = matrixBMI[2][-1]
-    for each in range(len(matrixBMI[0])):
-        if(age < matrixBMI[0][each]):
-            bmi_min = matrixBMI[1][each]
-            bmi_max = matrixBMI[2][each]
+    for i in range(len(matrixBMI[0])-2):
+        if(age < matrixBMI[0][i+1]):
+            bmi_min = matrixBMI[1][i]
+            bmi_max = matrixBMI[2][i]
             break
     if (_bmi < bmi_min):
         return "Untergewichtig"
