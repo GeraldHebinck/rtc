@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-# --- TurtleClass_move2Goal.py ------
-# Version vom 23.11.2020 by OJ
+# --- TurtleBotClass.py ------
+# Version vom 30.11.2020 by OJ
 # ----------------------------
-# from
-# --- P3_V4_TurtleClass_move2goal.py ------
-# Version vom 22.10.2019 by OJ
-# Basiert auf der Loesung aus dem Turtlesim Tutorial
-# http://wiki.ros.org/turtlesim/Tutorials/Go%20to%20Goal
-#
 import rospy
 from geometry_msgs.msg import Twist
 from turtlesim.msg import Pose
-from math import pow, atan2, sqrt
+from nav_msgs.msg import Odometry
+from math import pow, atan2, sqrt, pi
 
 
 class TurtleBotClass:
+    # globale Variablen
+    goal = Pose()
 
     def __init__(self):
         # globale Klassen-Variablen instanzieren
@@ -24,31 +21,56 @@ class TurtleBotClass:
 
         # Creates a node with name 'turtlebot_controller' and make sure it is a
         # unique node (using anonymous=True).
-        rospy.init_node('turtlebot_controller', anonymous=True)
+
+        #  init schon im turtlebot3_server
+        # rospy.init_node('turtlebot_controller', anonymous=True)
 
         # Publisher which will publish to the topic '/turtle1/cmd_vel'.
-        self.velocity_publisher = rospy.Publisher('/turtle1/cmd_vel',
+        self.velocity_publisher = rospy.Publisher('/cmd_vel',
                                                   Twist, queue_size=10)
 
-        # A subscriber to the topic '/turtle1/pose'. self.update_pose is called
+        # A subscriber to the topic '/odpm. self.update_pose is called
         # when a message of type Pose is received.
-        self.pose_subscriber = rospy.Subscriber('/turtle1/pose',
-                                                Pose, self.update_pose)
+        self.pose_subscriber = rospy.Subscriber('odom',
+                                                Odometry, self.update_pose)
         self.rate = rospy.Rate(10)
 
+    def quaternion_to_euler(self, x, y, z, w):
+        # https://computergraphics.stackexchange.com/questions/8195/how-to-convert-euler-angles-to-quaternions-and-get-the-same-euler-angles-back-fr
+        """t0 = 2.0 * (w * x + y * z)
+        t1 = +1.0 - 2.0 * (x * x + y * y)
+        roll = atan2(t0, t1) # Drehung um X-Achse
+
+        t2 = +2.0 * (w * y - z * x)
+        t2 = +1.0 if t2 > +1.0 else t2
+        t2 = -1.0 if t2 < -1.0 else t2
+        pitch = asin(t2))  # Drehung um Y-Achse"""
+
+        t3 = +2.0 * (w * z + x * y)
+        t4 = +1.0 - 2.0 * (y * y + z * z)
+        yaw = atan2(t3, t4)  # Drehung um Z-Achse in rad
+
+        return yaw
+
     def update_pose(self, data):
-        """Callback function which is called when a new message of type Pose is
-        received by the subscriber."""
-        self.pose = data
-        self.pose.x = round(self.pose.x, 5)
-        self.pose.y = round(self.pose.y, 5)
+        # Callback function which is called when a new message
+        # of type Pose is received by the subscriber.
+        self.pose.x = round(data.pose.pose.position.x, 4)
+        self.pose.y = round(data.pose.pose.position.y, 4)
+        # rospy.loginfo(rospy.get_caller_id() + "x %s  y %s ", pose.x, pose.x)
+        # orientation als Quaternion
+        x = data.pose.pose.orientation.x
+        y = data.pose.pose.orientation.y
+        z = data.pose.pose.orientation.z
+        w = data.pose.pose.orientation.w
+        self.pose.theta = self.quaternion_to_euler(x, y, z, w)
 
     def euclidean_distance(self, goal_pose):
         """Euclidean distance between current pose and the goal."""
         return sqrt(pow((goal_pose.x - self.pose.x), 2) +
                     pow((goal_pose.y - self.pose.y), 2))
 
-    def set_linear_vel(self, goal_pose, constant=0.5, lin_max=1.0):
+    def set_linear_vel(self, goal_pose, constant=0.5, lin_max=0.3):
         lin_vel = constant * self.euclidean_distance(goal_pose)
         if lin_vel > lin_max:
             lin_vel = lin_max  # Maximum begrenzen
@@ -59,11 +81,23 @@ class TurtleBotClass:
     def steering_angle(self, goal_pose):
         return atan2(goal_pose.y - self.pose.y, goal_pose.x - self.pose.x)
 
-    def set_angular_vel(self, goal_pose, constant=1.0, ang_max=1.5):
-        ang_vel = constant * (self.steering_angle(goal_pose) - self.pose.theta)
+    def set_angular_vel(self, goal_pose, constant=1.0, ang_max=1.0):
+        angle_to_goal = self.steering_angle(goal_pose)
+        if angle_to_goal > pi:
+            angle_to_goal = angle_to_goal - 2 * pi
+        if angle_to_goal < -pi:
+            angle_to_goal = angle_to_goal + 2 * pi
+
+        ang_vel = constant * (angle_to_goal - self.pose.theta)
         if(ang_vel > ang_max):
             ang_vel = ang_max
-        self.vel_msg.angular.z = ang_vel
+        if(ang_vel < -ang_max):
+            ang_vel = -ang_max
+        # Drehrichtung berechnen
+        if self.pose.theta - angle_to_goal > 0:
+            self.vel_msg.angular.z = -ang_vel
+        else:
+            self.vel_msg.angular.z = ang_vel
         self.vel_msg.angular.x = 0
         self.vel_msg.angular.y = 0
 
@@ -92,7 +126,8 @@ class TurtleBotClass:
 
     def stop_robot(self):
         # Stopping our robot after the movement is over.
-        rospy.loginfo(" ######  Goal reached, Stop Robot #######")
+        rospy.loginfo("TurtleBot Class> Goal reached %2.2f %2.2f", round(self.pose.x, 2), round(self.pose.y, 2))
+        # rospy.loginfo(" --- Goal reached, Stop Robot ---")
         self.vel_msg.linear.x = 0
         self.vel_msg.angular.z = 0
         self.velocity_publisher.publish(self.vel_msg)
@@ -103,30 +138,22 @@ class TurtleBotClass:
         else:
             return False
 
-    def move2goal(self):
+    def move2goal(self, debug_info=False):
         # Moves the turtle to the goal
-
-        while not self.goal_reached():
-            # Linear velocity in the x-axis.
-            self.set_linear_vel(self.goal)
+        if not self.goal_reached():
             # Angular velocity in the z-axis.
             self.set_angular_vel(self.goal)
+            # Linear velocity in the x-axis.
+            self.set_linear_vel(self.goal)
+
             # Publishing our vel_msg
             self.velocity_publisher.publish(self.vel_msg)
             # Publish at the desired rate.
             self.rate.sleep()
-            # debug Info
-            self.pose_speed_info()
+            if debug_info is True:
+                self.pose_speed_info()
+            return False
 
         self.stop_robot()  # when goal is reached
-        exit()
-
-
-if __name__ == '__main__':
-    try:
-        turtle1 = TurtleBotClass()
-        turtle1.getGoalFromUser()
-        turtle1.start_info()
-        turtle1.move2goal()
-    except rospy.ROSInterruptException:
-        pass
+        return True
+        # exit()
