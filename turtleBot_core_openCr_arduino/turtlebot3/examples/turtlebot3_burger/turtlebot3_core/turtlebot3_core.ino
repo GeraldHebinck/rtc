@@ -160,7 +160,6 @@ void loop()
   // Update sonar data
   // OJ
   updateSonar(t); //t = millis()
-  updateSonar2(t); //t = millis()
 
   // Start Gyro Calibration after ROS connection
   updateGyroCali(nh.connected());
@@ -288,7 +287,8 @@ void publishSensorStateMsg(void)
 
   sensor_state_msg.bumper = sensors.checkPushBumper();
 
-  sensor_state_msg.cliff = sensors.getIRsensorData();
+  // Wert wird mit getSonarData2 ueberschrieben.
+  // sensor_state_msg.cliff = sensors.getIRsensorData();
 
   // TODO
   //#####################################################
