@@ -23,7 +23,7 @@ const int UPDATE_INTERVALL=16; //ms
   // Sonar < 3m => Timeout 17400 us
 const uint32_t TIMEOUT=6000; //us
 // ...dazu passend der maximale Weg
-const uint16_t  MAX_DIST=100; //cm
+const uint32_t  MAX_DIST=100; //cm
 
   //-- Abstands-Messung mit 2x SR04-Sonar durchfuehren --
   //so KLAPPTS => rostopic hz /tf ~28 Hz bei 35cm
@@ -58,32 +58,10 @@ void initSonar2(void)
   digitalWrite(sonar_pin2_.trig, LOW);
 }
 
-// Funktion in der Loop aufrufen
-void updateSonar(uint32_t now)
-{
-  static uint32_t last_time = 0;
-  static last_sensor = 0;     
-  
-    if(now - last_time > UPDATE_INTERVALL)
-    { // update nur alle xxx ms
-      last_time = now; //aktuelle Zeit merken
-      if(last_sensor)
-      {
-        sonar_data_ = measureSonar(sonar_pin_);
-        last_sonar = 0;
-      }
-      else
-      {
-        sonar_data2_ = measureSonar(sonar_pin2_);
-        last_sensor = 1;
-      }
-    }
-}
-
 // Funktion wertet pulseIn für den sensor aus.
 float measureSonar(SONAR_PIN sensor)
 {
-  uint16_t duration_uint, distance_uint;
+  uint32_t duration_uint, distance_uint;
   digitalWrite(sensor.trig, LOW);
   delayMicroseconds(2);
   digitalWrite(sensor.trig, HIGH);
@@ -100,6 +78,30 @@ float measureSonar(SONAR_PIN sensor)
   else 
       return 0.0;
 }
+
+// Funktion in der Loop aufrufen
+void updateSonar(uint32_t now)
+{
+  static uint32_t last_time = 0;
+  static int last_sensor = 0;     
+  
+    if(now - last_time > UPDATE_INTERVALL)
+    { // update nur alle xxx ms
+      last_time = now; //aktuelle Zeit merken
+      if(last_sensor)
+      {
+        sonar_data_ = measureSonar(sonar_pin_);
+        last_sensor = 0;
+      }
+      else
+      {
+        sonar_data2_ = measureSonar(sonar_pin2_);
+        last_sensor = 1;
+      }
+    }
+}
+
+
  
 // Funktion für die Konstruktion der Sensor-Msg des TurtleBots 
 float getSonarData(void){
